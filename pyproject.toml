@@ -1,7 +1,7 @@
 [project]
 name = "rvc-cli"
 version = "0.1.0"
-description = "Add your description here"
+description = "Retrieval-based-Voice-Conversion command line interface. Train using provided mp3. Inference on audio files to enhance an initial text-to-speech."
 readme = "README.md"
 authors = [{ name = "Clark Saben", email = "clarksaben01@gmail.com" }]
 requires-python = ">=3.10"

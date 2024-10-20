@@ -1,6 +1,6 @@
 # rvc_cli
 
-audible.vc voice to voice backend package built on rvc
+rvc_cli is a voice to voice cli package built on rvc
 
 Instructions are follow along. If you download a Travis Baldree book these instructions will work as is. Only things that change are names in `.env` w.r.t. respect whichever voice you are converting to and adding absolute paths if you don't want to use relative.
 
