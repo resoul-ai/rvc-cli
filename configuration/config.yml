@@ -1,0 +1,11 @@
+sid: 0
+f0_up_key: 0
+f0_file: null
+f0_method: rmvpe
+file_index: ''
+file_index2: null
+index_rate: 0.75
+filter_radius: 3
+resample_sr: 0
+rms_mix_rate: 0.25
+protect: 0.33

@@ -1,0 +1,43 @@
+[project]
+name = "rvc-cli"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [{ name = "Clark Saben", email = "clarksaben01@gmail.com" }]
+requires-python = ">=3.10"
+dependencies = ["python-dotenv", "click", "scipy==1.13.1", "torch==2.0.1", "ffmpeg-python", "faiss-cpu==1.7.3", "numpy==1.23.5", "pyworld==0.3.4", "torchcrepe==0.0.20", "omegaconf==2.0.6", "antlr4-python3-runtime==4.8", "colorama==0.4.6", "fairseq==0.12.2","praat-parselmouth==0.4.3","av==11.0.0", "tensorboard", "matplotlib"]
+
+[tool.setuptools.dynamic]
+version = { file = "src/rvc_cli/VERSION.txt" }
+
+[project.optional-dependencies]
+dev = ["pytest", "black", "flake8", "mypy"]
+
+[tool.setuptools]
+zip-safe = true
+include-package-data = true
+
+[tool.isort]
+profile = "black"
+src_paths = ["src", "tests"]
+known_first_party = ["rvc_cli"]
+
+[tool.mypy]
+disallow_untyped_calls = true
+disallow_untyped_imports = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+no_implicit_optional = true
+strict_equality = true
+warn_redundant_casts = true
+warn_return_any = true
+check_untyped_defs = true
+show_error_codes = true
+namespace_packages = true
+explicit_package_bases = true
+
+[tool.ruff]
+select = ["B", "C90", "E", "F", "W"]
+ignore = ["E501"]
+line-length = 88
+
