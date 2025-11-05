@@ -49,40 +49,6 @@ def parse_fspec(fspec_string: str) -> List[Tuple[float, float, str]]:
     return specs
 
 
-def extract_clip(
-    input_file: Union[str, Path],
-    output_file: Union[str, Path],
-    start: float,
-    duration: float,
-) -> None:
-    """
-    Extract a clip from the input file using ffmpeg.
-
-    :param input_file: Path to the input audio file
-    :type input_file: Union[str, Path]
-    :param output_file: Path to the output audio file
-    :type output_file: Union[str, Path]
-    :param start: Start time of the clip in seconds
-    :type start: float
-    :param duration: Duration of the clip in seconds
-    :type duration: float
-    """
-    cmd = [
-        "ffmpeg",
-        "-ss",
-        str(start),
-        "-i",
-        str(input_file),
-        "-t",
-        str(duration),
-        "-c",
-        "copy",
-        "-y",  # Overwrite output file if it exists
-        str(output_file),
-    ]
-    subprocess.run(cmd, check=True)
-
-
 def process_audio_file(
     input_file: Union[str, Path],
     output_dir: Union[str, Path],
@@ -91,9 +57,8 @@ def process_audio_file(
 ) -> None:
     """
     Process an audio file by either extracting specific clips based on fspec or
-    splitting it into fixed-size chunks.
-
-    :param input_file: Path to the input audio file
+    splitting it into fixed-size chunks. Supports both MP3 and WAV formats.
+    :param input_file: Path to the input audio file (MP3 or WAV)
     :type input_file: Union[str, Path]
     :param output_dir: Path to the output directory
     :type output_dir: Union[str, Path]
@@ -107,10 +72,15 @@ def process_audio_file(
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
+    # Determine the input file format
+    input_format = input_path.suffix.lower()[1:]  # Remove the leading dot
+    if input_format not in ["mp3", "wav"]:
+        raise ValueError("Unsupported file format. Only MP3 and WAV are supported.")
+
     if fspec:
         specs = parse_fspec(fspec)
         for start, end, name in specs:
-            output_file = output_path / f"{name}.mp3"
+            output_file = output_path / f"{name}.{input_format}"
             duration = end - start
             extract_clip(input_path, output_file, start, duration)
             print(f"Extracted: {output_file}")
@@ -127,12 +97,34 @@ def process_audio_file(
             str(input_path),
         ]
         duration = float(subprocess.check_output(probe_cmd).decode().strip())
-
         chunk_index = 0
         for start in range(0, int(duration), chunk_size):
             chunk_index += 1
-            output_file = output_path / f"chunk_{chunk_index}_{input_path.stem}.mp3"
+            output_file = (
+                output_path / f"chunk_{chunk_index}_{input_path.stem}.{input_format}"
+            )
             extract_clip(input_path, output_file, start, chunk_size)
             print(f"Extracted: {output_file}")
     else:
         raise ValueError("Either 'fspec' or 'chunk_size' must be provided")
+
+
+def extract_clip(
+    input_file: Path, output_file: Path, start: float, duration: float
+) -> None:
+    """
+    Extract a clip from the input audio file.
+    """
+    cmd = [
+        "ffmpeg",
+        "-i",
+        str(input_file),
+        "-ss",
+        str(start),
+        "-t",
+        str(duration),
+        "-c",
+        "copy",  # Use copy codec for faster processing
+        str(output_file),
+    ]
+    subprocess.run(cmd, check=True, capture_output=True)

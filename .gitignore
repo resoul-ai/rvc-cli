@@ -1,4 +1,6 @@
+dev.md
 # User specific
+outputs/
 data/
 data/*
 rvc-models/
