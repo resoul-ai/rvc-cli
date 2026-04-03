@@ -10,6 +10,9 @@ dependencies = ["python-dotenv", "click", "scipy==1.13.1", "torch==2.0.1", "ffmp
 [tool.setuptools.dynamic]
 version = { file = "src/rvc_cli/VERSION.txt" }
 
+[project.scripts]
+rvc-cli = "rvc_cli.__main__:cli"
+
 [project.optional-dependencies]
 dev = ["pytest", "black", "flake8", "mypy"]
 

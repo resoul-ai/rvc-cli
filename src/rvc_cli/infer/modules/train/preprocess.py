@@ -143,6 +143,16 @@ class PreProcess:
 
 
 def preprocess_trainset(inp_root, sr, n_p, exp_dir, per, noparallel=True):
+    gt_dir = os.path.join(exp_dir, "0_gt_wavs")
+    wavs16k_dir = os.path.join(exp_dir, "1_16k_wavs")
+    if (
+        os.path.isdir(gt_dir)
+        and os.path.isdir(wavs16k_dir)
+        and len(os.listdir(gt_dir)) > 0
+        and len(os.listdir(wavs16k_dir)) > 0
+    ):
+        println("preprocess already done, skipping (%d segments found)" % len(os.listdir(gt_dir)))
+        return
     pp = PreProcess(sr, exp_dir, per)
     println("start preprocess")
     pp.pipeline_mp_inp_dir(inp_root, n_p, noparallel=noparallel)

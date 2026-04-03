@@ -293,5 +293,34 @@ def create_dataset_from_large_mp3(input_file_path, output_directory, chunk_size)
     click.echo("Splitting completed.")
 
 
+@cli.command()
+@click.option(
+    "--input-directory",
+    type=click.Path(exists=True),
+    required=True,
+    help="Directory containing MP3 files to chunk",
+)
+@click.option(
+    "--output-directory",
+    type=click.Path(),
+    default="data/clips",
+    help="Directory to save chunked audio files",
+)
+@click.option("--chunk-size", help="Chunk size in seconds", default=60)
+def create_dataset_from_directory(input_directory, output_directory, chunk_size):
+    """Batch-chunk all MP3 files in a directory into fixed-size clips."""
+    input_dir = Path(input_directory)
+    mp3_files = sorted(input_dir.glob("*.mp3"))
+    if not mp3_files:
+        click.echo(f"No MP3 files found in {input_directory}")
+        return
+    click.echo(f"Found {len(mp3_files)} MP3 files. Chunking into {chunk_size}s clips...")
+    os.makedirs(output_directory, exist_ok=True)
+    for i, mp3_file in enumerate(mp3_files, 1):
+        click.echo(f"[{i}/{len(mp3_files)}] {mp3_file.name}")
+        process_audio_file(str(mp3_file), output_directory, chunk_size=chunk_size)
+    click.echo(f"Done. Clips saved to {output_directory}")
+
+
 if __name__ == "__main__":
     cli()

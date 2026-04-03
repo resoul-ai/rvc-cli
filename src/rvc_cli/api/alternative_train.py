@@ -86,6 +86,19 @@ class API_FeatureInput(FeatureInput):
 def create_f0_features(
     exp_dir: str = os.getenv("exp_dir"),
 ):
+    opt_root1 = "%s/2a_f0" % (exp_dir)
+    opt_root2 = "%s/2b-f0nsf" % (exp_dir)
+
+    # skip if already done
+    if (
+        os.path.isdir(opt_root1)
+        and os.path.isdir(opt_root2)
+        and len(os.listdir(opt_root1)) > 0
+        and len(os.listdir(opt_root2)) > 0
+    ):
+        logger.info("f0 extraction already done, skipping (%d files found)" % len(os.listdir(opt_root1)))
+        return
+
     # set up feature input
     featureInput = API_FeatureInput()
     paths = []
@@ -94,8 +107,6 @@ def create_f0_features(
     os.makedirs(exp_dir, exist_ok=True)
     inp_root = "%s/1_16k_wavs" % (exp_dir)
 
-    opt_root1 = "%s/2a_f0" % (exp_dir)
-    opt_root2 = "%s/2b-f0nsf" % (exp_dir)
     os.makedirs(opt_root1, exist_ok=True)
     os.makedirs(opt_root2, exist_ok=True)
 
@@ -434,7 +445,6 @@ def API_train(
     sr: str = "40k",
     if_f0_3: int = 1,
     batch_size: int = 12,
-    gpu: int = 1,
     total_epoch: int = 20,
     save_every_epoch: int = 5,
     pretrainG: str = os.getenv("pretrained_G"),
@@ -444,17 +454,16 @@ def API_train(
     if_save_every_weights: int = 0,
     version: str = "v2",
 ):
-    # uses a config file to load into hparams
-    # /home/arelius/workspace/utter/Retrieval-based-Voice-Conversion-WebUI/logs/webui-test/config.json
-    # NOTE: how did they originally generate this?
+    import torch.multiprocessing as mp
+
+    n_gpus = torch.cuda.device_count()
+
     config_save_path = os.path.join(exp_dir, "config.json")
     with open(config_save_path, "r") as f:
         config = json.load(f)
 
-    # subsequently adds the above init values to the hparams
     hparams = utils.HParams(**config)
 
-    # returns hparams
     hparams.model_dir = exp_dir
     hparams.save_every_epoch = save_every_epoch
     hparams.name = exp_dir.split("/")[-1]
@@ -462,7 +471,7 @@ def API_train(
     hparams.pretrainG = pretrainG
     hparams.pretrainD = pretrainD
     hparams.version = version
-    hparams.gpus = gpu
+    hparams.gpus = n_gpus
     hparams.train.batch_size = batch_size
     hparams.sample_rate = sr
     hparams.if_f0 = if_f0_3
@@ -471,7 +480,10 @@ def API_train(
     hparams.if_cache_data_in_gpu = if_cache_data_in_gpu
     hparams.data.training_files = "%s/filelist.txt" % exp_dir
 
-    run(rank=0, n_gpus=1, hps=hparams, logger=logger)
+    if n_gpus > 1:
+        mp.spawn(run, args=(n_gpus, hparams, logger), nprocs=n_gpus)
+    else:
+        run(rank=0, n_gpus=1, hps=hparams, logger=logger)
 
 
 def main():

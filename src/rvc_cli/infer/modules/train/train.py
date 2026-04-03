@@ -163,7 +163,10 @@ def run(rank, n_gpus, hps, logger: logging.Logger):
         writer_eval = SummaryWriter(log_dir=os.path.join(hps.model_dir, "eval"))
 
     dist.init_process_group(
-        backend="gloo", init_method="env://", world_size=n_gpus, rank=rank
+        backend="nccl" if torch.cuda.is_available() else "gloo",
+        init_method="env://",
+        world_size=n_gpus,
+        rank=rank,
     )
     torch.manual_seed(hps.train.seed)
     if torch.cuda.is_available():
