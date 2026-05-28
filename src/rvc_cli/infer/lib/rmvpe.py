@@ -592,20 +592,12 @@ class RMVPE:
         return f0
 
     def infer_from_audio(self, audio, thred=0.03):
-        # torch.cuda.synchronize()
-        # t0 = ttime()
         if not torch.is_tensor(audio):
             audio = torch.from_numpy(audio)
         mel = self.mel_extractor(
             audio.float().to(self.device).unsqueeze(0), center=True
         )
-        # print(123123123,mel.device.type)
-        # torch.cuda.synchronize()
-        # t1 = ttime()
         hidden = self.mel2hidden(mel)
-        # torch.cuda.synchronize()
-        # t2 = ttime()
-        # print(234234,hidden.device.type)
         if "privateuseone" not in str(self.device):
             hidden = hidden.squeeze(0).cpu().numpy()
         else:
@@ -614,10 +606,40 @@ class RMVPE:
             hidden = hidden.astype("float32")
 
         f0 = self.decode(hidden, thred=thred)
-        # torch.cuda.synchronize()
-        # t3 = ttime()
-        # print("hmvpe:%s\t%s\t%s\t%s"%(t1-t0,t2-t1,t3-t2,t3-t0))
         return f0
+
+    def infer_from_audio_batch(self, audio_list, thred=0.03):
+        """Process multiple audio arrays in a single batched forward pass."""
+        # Compute mels individually (variable length) then pad to batch
+        mels = []
+        lengths = []
+        for audio in audio_list:
+            if not torch.is_tensor(audio):
+                audio = torch.from_numpy(audio)
+            mel = self.mel_extractor(
+                audio.float().to(self.device).unsqueeze(0), center=True
+            )
+            mels.append(mel.squeeze(0))
+            lengths.append(mel.shape[-1])
+
+        max_len = max(lengths)
+        # Pad all mels to same length and stack into batch
+        padded = torch.stack(
+            [F.pad(m, (0, max_len - m.shape[-1])) for m in mels]
+        )
+
+        # Single batched forward pass
+        hidden_batch = self.mel2hidden(padded)
+        hidden_batch = hidden_batch.cpu().numpy()
+        if self.is_half:
+            hidden_batch = hidden_batch.astype("float32")
+
+        # Decode each, trimming to original length
+        results = []
+        for i, n_frames in enumerate(lengths):
+            hidden = hidden_batch[i, :n_frames]
+            results.append(self.decode(hidden, thred=thred))
+        return results
 
     def to_local_average_cents(self, salience, thred=0.05):
         # t0 = ttime()

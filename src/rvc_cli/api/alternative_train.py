@@ -70,22 +70,78 @@ def create_preprocessed_dataset(
 
 
 class API_FeatureInput(FeatureInput):
+    def _get_rmvpe(self):
+        if not hasattr(self, "model_rmvpe"):
+            from rvc_cli.infer.lib.rmvpe import RMVPE
+
+            self.model_rmvpe = RMVPE(
+                os.path.join(os.getenv("rmvpe_root"), "rmvpe.pt"),
+                is_half=os.getenv("rmvpe_is_half"),
+                device="cuda",
+            )
+        return self.model_rmvpe
+
     def compute_f0(self, path, f0_method):
         x = load_audio(path, self.fs)
-        from rvc_cli.infer.lib.rmvpe import RMVPE
-
-        self.model_rmvpe = RMVPE(
-            os.path.join(os.getenv("rmvpe_root"), "rmvpe.pt"),
-            is_half=os.getenv("rmvpe_is_half"),
-            device="cuda",
-        )
-        f0 = self.model_rmvpe.infer_from_audio(x, thred=0.03)
+        f0 = self._get_rmvpe().infer_from_audio(x, thred=0.03)
         return f0
+
+    def compute_f0_batch(self, paths, f0_method):
+        """Compute F0 for multiple audio files in a single batched forward pass."""
+        audios = [load_audio(p, self.fs) for p in paths]
+        return self._get_rmvpe().infer_from_audio_batch(audios, thred=0.03)
+
+    def go(self, paths, f0_method, batch_size=32):
+        import traceback
+
+        if len(paths) == 0:
+            print("no-f0-todo")
+            return
+
+        # filter out already-done
+        todo = []
+        for inp_path, opt_path1, opt_path2 in paths:
+            if os.path.exists(opt_path1 + ".npy") and os.path.exists(opt_path2 + ".npy"):
+                continue
+            todo.append((inp_path, opt_path1, opt_path2))
+
+        print("todo-f0-%s (skipped %d already done)" % (len(todo), len(paths) - len(todo)))
+
+        for i in range(0, len(todo), batch_size):
+            batch = todo[i : i + batch_size]
+            print("f0ing batch %d-%d / %d" % (i, i + len(batch), len(todo)))
+            try:
+                inp_paths = [b[0] for b in batch]
+                f0_results = self.compute_f0_batch(inp_paths, f0_method)
+                for (_, opt_path1, opt_path2), featur_pit in zip(batch, f0_results):
+                    np.save(opt_path2, featur_pit, allow_pickle=False)
+                    coarse_pit = self.coarse_f0(featur_pit)
+                    np.save(opt_path1, coarse_pit, allow_pickle=False)
+            except:
+                # fallback to one-by-one for this batch
+                print("batch failed, falling back: %s" % traceback.format_exc())
+                for inp_path, opt_path1, opt_path2 in batch:
+                    try:
+                        featur_pit = self.compute_f0(inp_path, f0_method)
+                        np.save(opt_path2, featur_pit, allow_pickle=False)
+                        coarse_pit = self.coarse_f0(featur_pit)
+                        np.save(opt_path1, coarse_pit, allow_pickle=False)
+                    except:
+                        print("f0fail-%s-%s" % (inp_path, traceback.format_exc()))
+
+
+def _f0_worker(rank, paths, exp_dir):
+    """F0 extraction worker for a single GPU."""
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(rank)
+    featureInput = API_FeatureInput()
+    featureInput.go(paths, "rmvpe")
 
 
 def create_f0_features(
     exp_dir: str = os.getenv("exp_dir"),
 ):
+    import torch.multiprocessing as mp
+
     opt_root1 = "%s/2a_f0" % (exp_dir)
     opt_root2 = "%s/2b-f0nsf" % (exp_dir)
 
@@ -99,18 +155,14 @@ def create_f0_features(
         logger.info("f0 extraction already done, skipping (%d files found)" % len(os.listdir(opt_root1)))
         return
 
-    # set up feature input
-    featureInput = API_FeatureInput()
     paths = []
 
-    # set up paths
     os.makedirs(exp_dir, exist_ok=True)
     inp_root = "%s/1_16k_wavs" % (exp_dir)
 
     os.makedirs(opt_root1, exist_ok=True)
     os.makedirs(opt_root2, exist_ok=True)
 
-    # fill paths
     for name in sorted(list(os.listdir(inp_root))):
         inp_path = "%s/%s" % (inp_root, name)
         if "spec" in inp_path:
@@ -119,9 +171,18 @@ def create_f0_features(
         opt_path2 = "%s/%s" % (opt_root2, name)
         paths.append([inp_path, opt_path1, opt_path2])
 
-    # run feature input
-    # in original webui they use cmd and allocate to diff gpus, we assume 1
-    featureInput.go(paths, "rmvpe")
+    n_gpus = torch.cuda.device_count()
+    if n_gpus > 1:
+        processes = []
+        for i in range(n_gpus):
+            p = mp.Process(target=_f0_worker, args=(i, paths[i::n_gpus], exp_dir))
+            processes.append(p)
+            p.start()
+        for p in processes:
+            p.join()
+    else:
+        featureInput = API_FeatureInput()
+        featureInput.go(paths, "rmvpe")
 
 
 def create_3feature():

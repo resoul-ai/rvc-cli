@@ -14,8 +14,8 @@ import datetime
 
 from rvc_cli.infer.lib.train import utils
 
-# if not using my api
-if len(sys.argv) > 1:
+# if not using my api (standalone script mode)
+if __name__ == "__main__" and len(sys.argv) > 1:
     hps = utils.get_hparams()
     os.environ["CUDA_VISIBLE_DEVICES"] = hps.gpus.replace("-", ",")
     n_gpus = len(hps.gpus.split("-"))
