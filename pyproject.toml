@@ -44,3 +44,9 @@ select = ["B", "C90", "E", "F", "W"]
 ignore = ["E501"]
 line-length = 88
 
+# Pin torch's CUDA backend. torch==2.0.1 predates cu128 wheels (those exist
+# only for torch ≥ 2.7), so use cu118 — forward-compatible to the rack's
+# 12.8 driver. resoul on the same rack pins cu128 for its newer torch (TTS).
+[tool.uv]
+torch-backend = "cu118"
+
